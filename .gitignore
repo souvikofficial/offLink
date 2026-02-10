@@ -1,0 +1,52 @@
+# General
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.npm/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# Build Outputs
+dist/
+out/
+build/
+coverage/
+
+# Next.js (client-web)
+.next/
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+
+# Mobile (client-mobile)
+dist-ssr/
+*.local
+
+# Capacitor / Mobile Native
+# Android
+android/.gradle
+android/app/build
+android/captures
+android/local.properties
+
+# iOS
+ios/App/App.xcodeproj/xcuserdata
+ios/App/App.xcworkspace/xcuserdata
+ios/derrivedData
+
+# Capacitor Config
+capacitor.config.json.timestamp

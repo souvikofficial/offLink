@@ -1,0 +1,83 @@
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  password           String
+  hashedRefreshToken String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  devices Device[]
+
+  @@map("users")
+}
+
+model Device {
+  id           String   @id @default(uuid())
+  ownerId      String
+  name         String?
+  hardwareId   String   @unique
+  model        String?
+  apiTokenHash String? // Stores hash of the API token
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  owner     User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  locations LocationPoint[]
+
+  @@index([hardwareId])
+  @@map("devices")
+}
+
+model LocationPoint {
+  id          BigInt   @id @default(autoincrement())
+  deviceId    String
+  capturedAt  DateTime
+  receivedAt  DateTime @default(now())
+  lat         Float
+  lng         Float
+  accuracyM   Float?
+  provider    String?
+  batteryPct  Int?
+  isCharging  Boolean? @default(false)
+  rawPayload  Json?    @default("{}") // Using Json instead of Jsonb for Prisma compatibility (Postgres maps Json to JSONB by default in Prisma if using updated types, but 'Json' is the type name)
+
+  // Geometry is actively supported via raw SQL or extensions in newer Prisma versions with postgresqlExtensions
+  // We use Unsupported for now to let Prisma ignore it in migrations/types if needed, or better yet, management via raw SQL.
+  // Actually, with `postgresqlExtensions`, we can use `extensions = [postgis]` in standard Prisma but the type support is still evolving.
+  // For simplicity and stability, we'll keep the column out of the Prisma model if we want strict typing or use `Unsupported("geometry(Point, 4326)")`.
+  // Using Unsupported allows migration creation but no typed access in client.
+  geom Unsupported("geometry(Point, 4326)")?
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, capturedAt])
+  @@index([deviceId, capturedAt(sort: Desc)])
+  @@index([geom], type: Gist)
+  @@map("location_points")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  userId    String?
+  deviceId  String?
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([action])
+  @@index([userId])
+  @@index([deviceId])
+  @@map("audit_logs")
+}
