@@ -19,4 +19,7 @@ public interface LocationDao {
 
     @Query("SELECT * FROM location_points ORDER BY capturedAt DESC LIMIT 1")
     LocationPointEntity getLatest();
+
+    @Query("DELETE FROM location_points WHERE capturedAt < :ts")
+    int deleteOlderThan(String ts);
 }

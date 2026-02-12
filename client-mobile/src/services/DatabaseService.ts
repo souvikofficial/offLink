@@ -37,11 +37,33 @@ class DatabaseService {
         }
 
         try {
+            // Attempt to obtain DB encryption secret from native side (Android EncryptedSharedPreferences)
+            let secret: string | undefined = undefined;
+            try {
+                const plugins = (Capacitor as any).Plugins || (window as any).Capacitor?.Plugins;
+                if (plugins && plugins.NativeSync && typeof plugins.NativeSync.getEncryptionKey === 'function') {
+                    const r = await plugins.NativeSync.getEncryptionKey();
+                    secret = r?.secret;
+                }
+                if (secret && (CapacitorSQLite as any).setEncryptionSecret) {
+                    try {
+                        await (CapacitorSQLite as any).setEncryptionSecret({ password: secret });
+                        console.log('Database: encryption secret set for native sqlite');
+                    } catch (e) {
+                        console.warn('Failed to set encryption secret on sqlite plugin', e);
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not obtain native DB encryption key', e);
+            }
             // Create connection
+            // If we obtained a secret, request an encrypted connection; otherwise fallback to no-encryption
+            const encryptedFlag = !!secret;
+            const mode = encryptedFlag ? 'encryption' : 'no-encryption';
             this.db = await this.sqlite.createConnection(
                 DB_NAME,
-                false,
-                'no-encryption',
+                encryptedFlag,
+                mode,
                 1,
                 false
             );

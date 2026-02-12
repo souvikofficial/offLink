@@ -129,6 +129,14 @@ public class LocationSyncWorker extends Worker {
     }
 
     private String getServerUrl() {
+        // Prefer a runtime-configured URL stored in SharedPreferences (so we don't need to rebuild)
+        try {
+            SharedPreferences prefs = getApplicationContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
+            String runtime = prefs.getString("runtime_offsync_server_url", null);
+            if (runtime != null && runtime.length() > 0) return runtime;
+        } catch (Exception ex) {
+            // ignore and fall back
+        }
         return BuildConfig.OFFSYNC_SERVER_URL;
     }
 

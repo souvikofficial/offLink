@@ -14,6 +14,7 @@ import android.net.Uri;
 import android.provider.ContactsContract;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+import android.provider.Telephony;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -36,6 +37,19 @@ public class NativeSmsPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("value", granted);
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void openDefaultSmsSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT);
+            intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, getContext().getPackageName());
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to open default SMS app settings", e);
+        }
     }
 
     @PluginMethod

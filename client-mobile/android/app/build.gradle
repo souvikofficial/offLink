@@ -1,4 +1,5 @@
 apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
 
 android {
     namespace = "com.offsync.app"
@@ -11,12 +12,15 @@ android {
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // Server URL used by native sync worker; override per build variant if needed
-        buildConfigField "String", "OFFSYNC_SERVER_URL", '"https://api.offsync.local"'
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
-        }
+}
+        buildConfigField "String", "OFFSYNC_SERVER_URL", '"https://api.offsync.local"'
+    }
+    buildFeatures {
+        buildConfig true
     }
     buildTypes {
         release {
@@ -42,12 +46,24 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.10'
+    // Play Services location for fused provider
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
+    // libphonenumber for robust phone parsing/normalization
+    implementation 'com.googlecode.libphonenumber:libphonenumber:8.13.30'
     // Room (local DB) and WorkManager for background syncing
     implementation "androidx.room:room-runtime:2.5.2"
     annotationProcessor "androidx.room:room-compiler:2.5.2"
     implementation "androidx.work:work-runtime:2.8.1"
+    implementation "androidx.work:work-runtime-ktx:2.8.1"
     // OkHttp for simple HTTP upload
     implementation "com.squareup.okhttp3:okhttp:4.11.0"
+    // SQLCipher for Android (encrypt Room DB at rest)
+    implementation 'net.zetetic:android-database-sqlcipher:4.5.0'
+    // AndroidX Security crypto for EncryptedSharedPreferences / MasterKey
+    implementation 'androidx.security:security-crypto:1.1.0'
+    // Sentry for native crash reporting
+    implementation 'io.sentry:sentry-android:6.7.0'
 }
 
 apply from: 'capacitor.build.gradle'

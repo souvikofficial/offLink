@@ -82,3 +82,15 @@ model AuditLog {
   @@index([deviceId])
   @@map("audit_logs")
 }
+
+model RequestNonce {
+  id            String   @id @default(uuid())
+  deviceId      String
+  signatureHash String   @unique
+  createdAt     DateTime @default(now())
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@map("request_nonces")
+}

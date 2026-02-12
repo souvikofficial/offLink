@@ -94,6 +94,23 @@ export class DeviceTokenGuard implements CanActivate {
                 this.logger.warn(`Invalid signature for device: ${deviceId}`);
                 throw new UnauthorizedException('Invalid signature');
             }
+            // Replay protection: store recent signature hashes in DB and reject duplicates within window
+            try {
+                const sigHash = crypto.createHash('sha256').update(provided).digest('hex');
+                const windowMs = 5 * 60 * 1000; // same as timestamp freshness window
+                const cutoff = new Date(Date.now() - windowMs);
+                const existing = await this.prisma.requestNonce.findUnique({ where: { signatureHash: sigHash } });
+                if (existing) {
+                    this.logger.warn(`Replay detected for device: ${deviceId}`);
+                    throw new UnauthorizedException('Replay detected');
+                }
+                // Insert nonce record
+                await this.prisma.requestNonce.create({ data: { deviceId: device.id, signatureHash: sigHash } });
+            } catch (e) {
+                if (e instanceof UnauthorizedException) throw e;
+                // Do not let nonce logic break authentication; log and continue
+                this.logger.warn(`Nonce storage/check failed for device ${deviceId}: ${e.message}`);
+            }
         } catch (e) {
             if (e instanceof UnauthorizedException) throw e;
             this.logger.warn(`Signature validation error for device: ${deviceId}`);

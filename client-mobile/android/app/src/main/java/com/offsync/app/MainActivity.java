@@ -14,6 +14,15 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NativeSyncPlugin.class);
         registerPlugin(NativeSmsPlugin.class);
         super.onCreate(savedInstanceState);
+        // If launched with intent extra `openDevSettings`, set a SharedPreferences flag
+        try {
+            if (getIntent() != null && getIntent().getBooleanExtra("openDevSettings", false)) {
+                android.content.SharedPreferences prefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
+                prefs.edit().putBoolean("open_dev_settings", true).apply();
+            }
+        } catch (Exception ex) {
+            // ignore
+        }
     }
 
     /**

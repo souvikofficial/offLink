@@ -12,9 +12,12 @@ import { deviceService } from './services/DeviceService';
 import { syncService } from './services/SyncService';
 import { Share } from '@capacitor/share';
 import { registerPlugin } from '@capacitor/core';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 const NativeSms = registerPlugin<any>('NativeSms');
 import { loadAccuracyMode, type AccuracyMode } from './services/LocationConfig';
+import { getServerUrl, setServerUrl, clearServerUrl } from './services/RuntimeConfig';
 import './App.css';
+import DevSettings from './DevSettings';
 
 type OneShotLocation = {
   lat: number;
@@ -40,6 +43,9 @@ function App() {
   const [currentLocationError, setCurrentLocationError] = useState<string | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [savedNumber, setSavedNumber] = useState<string | null>(null);
+  const [serverUrl, setServerUrlState] = useState<string | null>(null);
+  const [showDevSettings, setShowDevSettings] = useState(false);
+  const [developerMode, setDeveloperMode] = useState(false);
 
   // ─── Check permission state on mount + app resume ─────────────────
 
@@ -56,6 +62,16 @@ function App() {
       listenerHandle = CapApp.addListener('resume', async () => {
         const state = await permissionService.onAppResume();
         setPermState(state);
+        // Check if native requested opening dev settings
+        try {
+          const plugins = (window as any).Capacitor?.Plugins || (window as any).Capacitor;
+          if (plugins && plugins.NativeSync && typeof plugins.NativeSync.checkAndConsumeOpenDevFlag === 'function') {
+            const r = await plugins.NativeSync.checkAndConsumeOpenDevFlag();
+            if (r && r.openDev) setShowDevSettings(true);
+          }
+        } catch (e) {
+          // ignore
+        }
       });
     }
 
@@ -83,7 +99,12 @@ function App() {
       console.log('SyncService initialized:', !!syncService);
       try {
         const saved = await NativeSms.getSavedNumber();
-        setSavedNumber(saved?.number ?? null);
+        const n = saved?.number ?? null;
+        setSavedNumber(n ? normalizeNumber(n) : null);
+        const su = await getServerUrl();
+        setServerUrlState(su);
+        const dm = await (await import('./services/RuntimeConfig')).getDeveloperMode();
+        setDeveloperMode(!!dm);
       } catch (e) {
         // ignore
       }
@@ -131,6 +152,19 @@ function App() {
     setIsBackground(newMode);
     await locationService.setMode(newMode ? 'background' : 'foreground');
   };
+
+  function normalizeNumber(raw: string | null): string | null {
+    if (!raw) return null;
+    try {
+      const pn = parsePhoneNumberFromString(raw);
+      if (pn && pn.isValid && pn.isValid()) return pn.number;
+    } catch (e) {
+      // ignore
+    }
+    // Fallback: remove spaces and common separators
+    const cleaned = raw.replace(/[\s\-()\.]/g, '');
+    return cleaned || null;
+  }
 
   const handleBgPermGranted = async () => {
     setShowBgPermModal(false);
@@ -390,17 +424,22 @@ function App() {
                               }
                             }
 
-                            // Try saved number
+                            // Try saved number (normalize) or pick one
                             const saved = await NativeSms.getSavedNumber();
-                            let number = saved?.number;
+                            let number = saved?.number ?? null;
                             if (!number) {
                               const pick = await NativeSms.pickContact();
-                              number = pick?.number;
+                              number = pick?.number ?? null;
                               if (!number) return;
-                              setSavedNumber(number);
                             }
+                            const normalized = normalizeNumber(number);
+                            if (!normalized) {
+                              alert('Failed to normalize phone number');
+                              return;
+                            }
+                            setSavedNumber(normalized);
 
-                            await NativeSms.sendSmsSilent({ number, message: body });
+                            await NativeSms.sendSmsSilent({ number: normalized, message: body });
                             alert('SMS sent (silent)');
                           } catch (e) {
                             console.warn('Silent SMS failed', e);
@@ -417,7 +456,10 @@ function App() {
                           try {
                             const pick = await NativeSms.pickContact();
                             const num = pick?.number;
-                            if (num) setSavedNumber(num);
+                            if (num) {
+                              const normalized = normalizeNumber(num);
+                              setSavedNumber(normalized);
+                            }
                           } catch (e) {
                             console.warn('Contact pick failed', e);
                           }
@@ -442,6 +484,48 @@ function App() {
                           Clear
                         </button>
                       )}
+                      <button
+                        onClick={async () => {
+                          try {
+                            await NativeSms.openDefaultSmsSettings();
+                          } catch (e) {
+                            console.warn('Open default SMS settings failed', e);
+                            alert('Unable to open default SMS settings');
+                          }
+                        }}
+                        className="py-1 px-2 bg-yellow-600/10 text-yellow-300 text-xs rounded"
+                      >
+                        Set default SMS app
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            // Demo: request permission, pick contact, send silent SMS
+                            const perm = await NativeSms.requestSendSmsPermission();
+                            if (!perm || !perm.granted) {
+                              alert('Permission not granted');
+                              return;
+                            }
+                            const pick = await NativeSms.pickContact();
+                            const num = pick?.number;
+                            if (!num) return;
+                            const normalized = normalizeNumber(num);
+                            if (!normalized) return;
+                            const point = await locationService.getCurrentOrLastLocation(120_000);
+                            if (!point) return;
+                            const body = `I'm here: https://maps.google.com/?q=${point.lat},${point.lng} (accuracy ${Math.round(point.accuracyM)}m) at ${new Date(point.capturedAt).toLocaleString()}`;
+                            await NativeSms.sendSmsSilent({ number: normalized, message: body });
+                            alert('Demo SMS sent (silent)');
+                          } catch (e) {
+                            console.warn('Demo failed', e);
+                            alert('Demo failed');
+                          }
+                        }}
+                        className="py-1 px-2 bg-green-600/10 text-green-300 text-xs rounded"
+                      >
+                        Run SMS Demo
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -455,6 +539,54 @@ function App() {
                 Force Sync Now
               </button>
             )}
+          </div>
+        </div>
+
+        {/* Runtime Server URL (editable at runtime) */}
+        <div className="w-full p-4 rounded-xl border bg-gray-800/30 border-gray-700/50">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-300 text-sm font-medium">Server URL (runtime)</span>
+            <span className="text-gray-500 text-xs">Changes apply immediately</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={serverUrl ?? ''}
+              onChange={(e) => setServerUrlState(e.target.value)}
+              placeholder="https://your-server.example"
+              className="flex-1 bg-gray-900/40 border border-gray-700 rounded px-3 py-2 text-sm text-white"
+            />
+            <button
+              onClick={async () => {
+                try {
+                  if (!serverUrl) {
+                    alert('Enter a URL to save');
+                    return;
+                  }
+                  await setServerUrl(serverUrl);
+                  alert('Server URL saved');
+                } catch (e) {
+                  console.warn('Failed to save server URL', e);
+                  alert('Failed to save server URL');
+                }
+              }}
+              className="py-2 px-3 bg-blue-600/20 text-blue-300 rounded text-sm"
+            >
+              Save
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await clearServerUrl();
+                  setServerUrlState(null);
+                  alert('Cleared runtime server URL (will use build config)');
+                } catch (e) {
+                  console.warn('Failed to clear server URL', e);
+                }
+              }}
+              className="py-2 px-3 bg-red-600/10 text-red-300 rounded text-sm"
+            >
+              Clear
+            </button>
           </div>
         </div>
 
@@ -559,6 +691,21 @@ function App() {
         </div>
       </div>
     </div>
+      {/* Android-only developer floating button */}
+      {developerMode && Capacitor.getPlatform && Capacitor.getPlatform() === 'android' && (
+        <>
+          <button
+            onClick={() => setShowDevSettings(true)}
+            className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full bg-yellow-500/20 border border-yellow-400 flex items-center justify-center text-yellow-300 shadow-lg"
+            aria-label="Open dev settings"
+          >
+            ⚙️
+          </button>
+          {showDevSettings && (
+            <DevSettings onClose={() => setShowDevSettings(false)} />
+          )}
+        </>
+      )}
   );
 }
 
