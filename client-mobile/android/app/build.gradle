@@ -10,6 +10,8 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // Server URL used by native sync worker; override per build variant if needed
+        buildConfigField "String", "OFFSYNC_SERVER_URL", '"https://api.offsync.local"'
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -40,6 +42,12 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    // Room (local DB) and WorkManager for background syncing
+    implementation "androidx.room:room-runtime:2.5.2"
+    annotationProcessor "androidx.room:room-compiler:2.5.2"
+    implementation "androidx.work:work-runtime:2.8.1"
+    // OkHttp for simple HTTP upload
+    implementation "com.squareup.okhttp3:okhttp:4.11.0"
 }
 
 apply from: 'capacitor.build.gradle'

@@ -1,10 +1,14 @@
-import { Controller, Post, Body, UsePipes } from '@nestjs/common';
+import { Controller, Post, Body, UsePipes, UseGuards } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { LoginDto, LoginSchema } from './dto/login.dto';
-import { RegisterDto, RegisterSchema } from './dto/register.dto';
+import { LoginSchema } from './dto/login.dto';
+import type { LoginDto } from './dto/login.dto';
+import { RegisterSchema } from './dto/register.dto';
+import type { RegisterDto } from './dto/register.dto';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 
 @Controller('auth')
+@UseGuards(ThrottlerGuard)
 export class AuthController {
     constructor(private authService: AuthService) { }
 

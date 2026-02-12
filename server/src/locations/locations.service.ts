@@ -8,12 +8,9 @@ export class LocationsService {
     constructor(private prisma: PrismaService) { }
 
     async ingest(deviceId: string, locations: CreateLocationDto[]) {
-        // Map DTO to Prisma input format. 
-        // Note: createMany with skipDuplicates handles idempotency based on the unique index @@unique([deviceId, capturedAt])
         const data = locations.map((loc) => ({
             deviceId,
-            capturedAt: loc.capturedAt, // Date string is automatically handled by Prisma/Date scalar if compatible, but Zod .datetime() ensures ISO string. 
-            // Wait, Prisma expects a Date object for DateTime fields. I need to convert it.
+            capturedAt: new Date(loc.capturedAt),
             lat: loc.lat,
             lng: loc.lng,
             accuracyM: loc.accuracyM,
@@ -22,19 +19,8 @@ export class LocationsService {
             isCharging: loc.isCharging,
         }));
 
-        // However, Prisma's `createMany` does not support `skipDuplicates` on all databases (e.g. SQL Server), but it DOES on PostgreSQL.
-        // The user's schema uses PostgreSQL.
-
-        // Correction: `capturedAt` from Zod is a string, Prisma needs a Date object or compliant ISO string. 
-        // Providing a Date object is safer.
-
-        const formattedData = data.map(d => ({
-            ...d,
-            capturedAt: new Date(d.capturedAt)
-        }));
-
         const result = await this.prisma.locationPoint.createMany({
-            data: formattedData,
+            data,
             skipDuplicates: true,
         });
 

@@ -9,12 +9,15 @@ export class ZodValidationPipe implements PipeTransform {
     constructor(private schema: ZodSchema) { }
 
     transform(value: unknown, metadata: ArgumentMetadata) {
-        if (metadata.type !== 'body') return value;
+        // Validate Body, Query, and Param
+        if (metadata.type !== 'body' && metadata.type !== 'query' && metadata.type !== 'param') {
+            return value;
+        }
 
         const parsed = this.schema.safeParse(value);
         if (parsed.success) return parsed.data;
 
-        const errors = parsed.error.errors.map((err) => ({
+        const errors = parsed.error.issues.map((err) => ({
             path: err.path.join('.'),
             message: err.message,
         }));

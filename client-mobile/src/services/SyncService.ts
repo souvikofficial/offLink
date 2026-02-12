@@ -72,29 +72,23 @@ class SyncService {
     }
 
     private async processBatch() {
-        // 1. Get pending locations
         const pending = await databaseService.getPendingLocations(this.BATCH_SIZE);
         if (pending.length === 0) return;
 
         console.log(`Syncing batch of ${pending.length} locations...`);
 
-        // 2. Upload
-        // Note: apiClient already handles 401 retry via interceptors
         await apiClient.post('/ingest/locations', pending);
 
         console.log(`Batch uploaded successfully.`);
 
-        // 3. Mark as uploaded
-        // Optimize: could add a bulk update method to DatabaseService
-        for (const point of pending) {
-            if (point.id) {
-                await databaseService.markAsUploaded(point.id);
-            }
+        // Mark all as uploaded atomically
+        const ids = pending.map(p => p.id).filter((id): id is number => id !== undefined);
+        if (ids.length > 0) {
+            await databaseService.markBatchAsUploaded(ids);
         }
 
-        this.consecutiveFailures = 0; // Reset on success
+        this.consecutiveFailures = 0;
 
-        // If we filled a batch, there might be more, so trigger another sync immediately
         if (pending.length === this.BATCH_SIZE) {
             this.triggerSync();
         }

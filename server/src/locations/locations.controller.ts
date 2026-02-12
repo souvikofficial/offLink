@@ -1,12 +1,13 @@
 
-import { Controller, Post, Headers, Body, UsePipes, BadRequestException, Get, Param, Query, UseGuards } from '@nestjs/common';
-import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { Controller, Post, Headers, Body, UsePipes, Get, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { LocationsService } from './locations.service';
 import type { CreateLocationDto } from './dto/create-location.dto';
 import { CreateLocationSchema } from './dto/create-location.dto';
 import type { GetLocationsQueryDto } from './dto/get-locations-query.dto';
 import { GetLocationsQuerySchema } from './dto/get-locations-query.dto';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { DeviceTokenGuard } from '../common/guards/device-token.guard';
 import { z } from 'zod';
 
 const CreateLocationsSchema = z.array(CreateLocationSchema);
@@ -17,16 +18,14 @@ export class LocationsController {
     constructor(private readonly locationsService: LocationsService) { }
 
     @Post('ingest/locations')
+    @UseGuards(DeviceTokenGuard)
     @UsePipes(new ZodValidationPipe(CreateLocationsSchema))
     async ingest(
-        @Headers('x-device-id') deviceId: string,
+        @Request() req: any,
         @Body() locations: CreateLocationDto[],
     ) {
-        if (!deviceId) {
-            throw new BadRequestException('x-device-id header is required');
-        }
-
-        return this.locationsService.ingest(deviceId, locations);
+        // Device is validated and attached by DeviceTokenGuard
+        return this.locationsService.ingest(req.device.id, locations);
     }
 
     @Get('devices/:id/last-location')
@@ -35,10 +34,9 @@ export class LocationsController {
     }
 
     @Get('devices/:id/locations')
-    @UsePipes(new ZodValidationPipe(GetLocationsQuerySchema))
     async getLocations(
         @Param('id') deviceId: string,
-        @Query() query: GetLocationsQueryDto
+        @Query(new ZodValidationPipe(GetLocationsQuerySchema)) query: GetLocationsQueryDto
     ) {
         return this.locationsService.getLocationHistory(deviceId, query);
     }

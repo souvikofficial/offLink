@@ -29,7 +29,7 @@ axiosRetry(apiClient, {
     }
 });
 
-// Request Interceptor: Add Signing Headers
+// Request Interceptor: Add Signing Headers + Device Token
 apiClient.interceptors.request.use((config) => {
     const timestamp = Date.now();
     const method = config.method?.toUpperCase() || 'GET';
@@ -45,7 +45,7 @@ apiClient.interceptors.request.use((config) => {
 
     // Attach Headers
     config.headers['x-device-id'] = deviceId;
-    config.headers['x-device-token'] = deviceToken;
+    config.headers['x-device-token'] = deviceToken; // Raw token for server-side bcrypt verification
     config.headers['x-timestamp'] = timestamp.toString();
     config.headers['x-signature'] = signature;
 
